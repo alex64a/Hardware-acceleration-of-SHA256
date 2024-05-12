@@ -1,4 +1,5 @@
 #include "dma.hpp"
+#include <cstdint>
 #include <stdio.h>
 #include <tlm>
 
@@ -30,19 +31,19 @@ void Dma::b_transport(pl_t &pl, sc_core::sc_time &offset) {
   case TLM_WRITE_COMMAND:
     switch (addr) {
     case DMA_INPUT_ADDR:
-      iAddr = data;
+      iAddr = (uint32_t *)data;
       pl.set_response_status(TLM_OK_RESPONSE);
       break;
 
     case DMA_HASH_ADDR:
-      hAddr = data;
-      hAddr = new unsigned char[HEX_AMOUNT + 2];
+      hAddr = (uint32_t *)data;
+      hAddr = new uint32_t[HEX_AMOUNT + 2];
       pl.set_response_status(TLM_OK_RESPONSE);
       break;
 
     case DMA_ILEN_ADDR:
       iLen = *(int *)data;
-      // cout << "DMA: iLen = " << iLen << endl;
+      cout << "DMA: iLen = " << iLen << endl;
       break;
 
     case DMA_CSR_ADDR:
@@ -69,37 +70,37 @@ void Dma::b_transport(pl_t &pl, sc_core::sc_time &offset) {
 
 void Dma::send_to_fifo() {
   // AXI-FULL DDR TO DMA
-  delay += sc_core::sc_time(
-      floor(30 + iLen * 8 / BUS_WIDTH) * TIME_SHORTEST_PATH, sc_core::SC_NS);
+  cout << "Send to fifo" << endl;
+  // delay += sc_core::sc_time(
+  //   floor(30 + iLen * 8 / BUS_WIDTH) * TIME_SHORTEST_PATH, sc_core::SC_NS);
 
   // send it to fifo
+  printf("DMA write");
   for (size_t i = 0; i < iLen; i++) {
     fifoToIP->write(iAddr[i]);
   }
   cout << endl << "DMA: input read from DDR, sending to HW" << endl;
 
   // AXI-STREAM DMA TO HARDWARE
-  delay += sc_core::sc_time((30 + iLen * 8 / BUS_WIDTH) * TIME_SHORTEST_PATH,
-                            sc_core::SC_NS);
+  // delay += sc_core::sc_time((30 + iLen * 8 / BUS_WIDTH) * TIME_SHORTEST_PATH,
+  //                         sc_core::SC_NS);
 
   while (1) {
     if (fifoToDma.num_available()) {
       for (size_t i = 0; i < HEX_AMOUNT - 1; i++) {
         fifoToDma->read(hAddr[i]);
       }
-      hAddr[HEX_AMOUNT - 1] = '\0';
       cout << "DMA: Read the hash, sending to DDR" << endl;
-
       // AXI-FULL DMA TO DDR
-      delay += sc_core::sc_time((OUTPUT_SIZE * 8 / BUS_WIDTH + 30) *
-                                    TIME_SHORTEST_PATH,
-                                sc_core::SC_NS);
+      // delay += sc_core::sc_time((OUTPUT_SIZE * 8 / BUS_WIDTH + 30) *
+      //                            TIME_SHORTEST_PATH,
+      //                      sc_core::SC_NS);
 
       // sending data to ddr
       pl.set_command(tlm::TLM_WRITE_COMMAND);
       pl.set_address(DMA_HASH_ADDR);
       pl.set_response_status(tlm::TLM_INCOMPLETE_RESPONSE);
-      pl.set_data_ptr(hAddr);
+      pl.set_data_ptr((unsigned char *)hAddr);
       pl.set_data_length(HEX_AMOUNT);
 
       swsoc->b_transport(pl, offset);

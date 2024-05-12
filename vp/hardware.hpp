@@ -14,8 +14,8 @@ public:
 
   tlm_utils::simple_target_socket<Hardware> icsoc; // interconnect socket
 
-  sc_core::sc_fifo_out<unsigned char> fifoToDma;
-  sc_core::sc_fifo_in<unsigned char> fifoToIP;
+  sc_core::sc_fifo_out<uint32_t> fifoToDma;
+  sc_core::sc_fifo_in<uint32_t> fifoToIP;
   sc_core::sc_event *hwDone; // event for modelling the interrupt in the system
 
 protected:
@@ -46,7 +46,7 @@ protected:
   uint32_t T1, T2;
   uint32_t swapE32(uint32_t);
 
-  unsigned char *intBuff; // internal buffer for storing the input
+  uint32_t *intBuff; // internal buffer for storing the input
   int blockCount; // configuration register that indicates how many blocks there
                   // will be
   int inputPos = 0; // indicator of how much input has been hashed

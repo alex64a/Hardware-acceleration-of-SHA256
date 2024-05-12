@@ -3,6 +3,7 @@
 
 #include "typedefs.hpp"
 #include "utils.hpp"
+#include <cstdint>
 
 class Dma : public sc_core::sc_module {
   SC_HAS_PROCESS(Dma);
@@ -14,13 +15,13 @@ public:
   tlm_utils::simple_target_socket<Dma> icsoc;    // interconnect socket
   tlm_utils::simple_initiator_socket<Dma> swsoc; // software socket
 
-  sc_core::sc_fifo_in<unsigned char> fifoToDma; // fifo between dma and ip
-  sc_core::sc_fifo_out<unsigned char> fifoToIP; // fifo between dma and ip
+  sc_core::sc_fifo_in<uint32_t> fifoToDma; // fifo between dma and ip
+  sc_core::sc_fifo_out<uint32_t> fifoToIP; // fifo between dma and ip
 
 protected:
-  unsigned char *hAddr, *iAddr; // hash and input address pointers
-  sc_dt::sc_uint<1> ctrl;       // control bit
-  int iLen;                     // length of input from ddr
+  uint32_t *hAddr, *iAddr;  // hash and input address pointers
+  sc_dt::sc_uint<1> ctrl;   // control bit
+  int iLen;                 // length of input from ddr
   sc_core::sc_event fifoEv; // event that starts the sending of data to ip when
                             // ctrl bit jumps to 1
 

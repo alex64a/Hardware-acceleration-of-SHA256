@@ -2,6 +2,8 @@
 #include "string.h"
 #include "typedefs.hpp"
 #include <bits/fs_fwd.h>
+#include <cstdint>
+#include <cstdio>
 #include <ostream>
 using namespace std;
 
@@ -44,7 +46,7 @@ uint32_t Hardware::sig1(uint32_t x) {
 void Hardware::hash() {
 
   // 6.2.2
-  for (size_t i = 0; i < blockCount * RATE; i++) {
+  for (size_t i = 0; i < N; i++) {
     // 1
     for (size_t t = 0; t < 16; t++) {
       W[t] = M[i * 16 + t];
@@ -121,8 +123,9 @@ void Hardware::b_transport(pl_t &pl, sc_core::sc_time &offset) {
 
   if (cmd == tlm::TLM_WRITE_COMMAND) {
     if (addr == HARDWARE_BCOUNT_ADDR) {
-      blockCount = *(int *)data;
-      intBuff = new unsigned char[blockCount * RATE];
+      N = *(int *)data;
+      intBuff = new uint32_t[N];
+      printf("****");
       pl.set_response_status(tlm::TLM_OK_RESPONSE);
     } else
       pl.set_response_status(tlm::TLM_ADDRESS_ERROR_RESPONSE);
@@ -134,7 +137,7 @@ void Hardware::fifoCheck() {
   while (1) {
     if (fifoToIP.num_available()) {
       cout << "Internal buffer:  ";
-      for (size_t i = 0; i < blockCount * RATE; i++) {
+      for (size_t i = 0; i < N; i++) {
         fifoToIP.read(intBuff[i]);
         cout << intBuff[i];
       }

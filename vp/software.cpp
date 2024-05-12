@@ -56,8 +56,6 @@ void Software::pad_and_parse(unsigned char *msg, size_t len) {
   inputLen = l + 1 + k + 64;
 
   msgPad = (char *)calloc((inputLen / 8), sizeof(char));
-  cout << "Padded message: " << endl;
-  cout << msgPad << endl;
   memcpy(msgPad, msg, len);
   msgPad[len] = 0x80;
   l = swapE64(l);
@@ -68,11 +66,12 @@ void Software::pad_and_parse(unsigned char *msg, size_t len) {
   // 6.2
 
   M = (uint32_t *)msgPad;
-  cout << "Parsing the padded message :  ";
+  cout << "Parsing the padded message :  " << endl;
   for (size_t i = 0; i < N * 16; i++) {
     M[i] = swapE32(M[i]);
     cout << M[i];
   }
+  free(msgPad);
 }
 
 void Software::write_dma(sc_dt::uint64 addr, unsigned char *ptr) {
@@ -122,8 +121,8 @@ void Software::write_hardware(sc_dt::uint64 addr) {
   sc_dt::uint64 taddr = addr | VP_ADDR_HARD_L;
 
   pl.set_address(taddr);
-  pl.set_data_length(sizeof(msgPad));
-  pl.set_data_ptr((unsigned char *)&msgPad);
+  pl.set_data_length(sizeof(N));
+  pl.set_data_ptr((unsigned char *)&N);
   pl.set_command(tlm::TLM_WRITE_COMMAND); // set command for writing
   pl.set_response_status(tlm::TLM_INCOMPLETE_RESPONSE); // set response
   sc_time offset(6 * TIME_SHORTEST_PATH, SC_NS);
@@ -139,8 +138,8 @@ void Software::app() {
   // configure hardware
   write_hardware(HARDWARE_BCOUNT_ADDR);
   // configure dma
-  write_dma(DMA_INPUT_ADDR, input);
-  write_dma(DMA_HASH_ADDR, (unsigned char *)msgPad);
+  write_dma(DMA_INPUT_ADDR, (unsigned char *)M);
+  write_dma(DMA_HASH_ADDR, (unsigned char *)H);
   write_dma(DMA_ILEN_ADDR);
   // start
   write_dma(DMA_CSR_ADDR);
@@ -151,6 +150,7 @@ void Software::app() {
    cout << "You entered :" << hash << endl;
    len = strlen(hash);*/
   pad_and_parse(input, inputLen);
+  printf("****");
   wait(*hwDone);
 
   // compare and report
