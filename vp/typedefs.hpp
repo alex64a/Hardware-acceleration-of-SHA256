@@ -27,6 +27,6 @@ typedef tlm::tlm_base_protocol_types::tlm_phase_type ph_t;
 #define START_CMD 0x01
 
 #define TIME_LONGEST_PATH 6
-#define BUS_WIDTH 64
+#define BUS_WIDTH 32
 
 #endif

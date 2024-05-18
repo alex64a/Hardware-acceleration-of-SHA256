@@ -76,10 +76,8 @@ void Hardware::hash() {
       v[0] = T1 + T2;
     }
 
-    cout << "H[t] is: ";
     for (size_t t = 0; t < 8; t++) {
       H[t] += v[t];
-      cout << H[t];
     }
   }
   cout << endl;
@@ -136,14 +134,11 @@ void Hardware::b_transport(pl_t &pl, sc_core::sc_time &offset) {
 void Hardware::fifoCheck() {
   while (1) {
     if (fifoToIP.num_available()) {
-      cout << "Internal buffer:  ";
       for (size_t i = 0; i < N * BLOCK_SIZE; i++) {
         fifoToIP.read(M[i]);
-        cout << "HW: Data" << M[i] << endl;
       }
       cout << "HW: Read input from DMA" << endl << endl;
       hash();
-      cout << "HW: after hash" << endl;
       for (size_t i = 0; i < HEX_AMOUNT; i++) {
         fifoToDma->write(H[i]);
       }

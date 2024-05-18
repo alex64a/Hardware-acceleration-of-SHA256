@@ -70,12 +70,9 @@ void Software::pad_and_parse(unsigned char *msg, size_t len) {
   cout << "M is: " << M << endl;
   cout << "Value at M is: " << *M << endl;
   cout << "N is: " << N << endl;
-  cout << "Parsing the padded message :  " << endl;
   for (size_t i = 0; i < N * 16; i++) {
     M[i] = swapE32(M[i]);
   }
-  // TODO Da li osloboditi sad ili nakon sto se posalje ka DMA-u
-  //  free(msgPad);
 }
 
 void Software::write_dma(sc_dt::uint64 addr, unsigned char *ptr) {
@@ -137,8 +134,7 @@ void Software::write_hardware(sc_dt::uint64 addr) {
 }
 
 void Software::app() {
-  inputLen = Read_from_file("input", &input);
-  cout << endl << "Input read from file is : " << input << endl;
+  inputLen = Read_from_file("../data/input", &input);
   cout << "Length of input is: " << inputLen << endl;
   // configure hardware
   std::cout << "SW: wrote to dma, started\n" << std::endl;
@@ -148,7 +144,6 @@ void Software::app() {
    cout << "You entered :" << hash << endl;
    len = strlen(hash);*/
   pad_and_parse(input, inputLen);
-  printf("****");
 
   write_hardware(HARDWARE_BCOUNT_ADDR);
   // configure dma
@@ -162,8 +157,8 @@ void Software::app() {
   free(msgPad);
   cout << "Delay: " << delay << endl;
   cout << "Throughput: "
-       << (blockCount * RATE / pow(1024, 2)) / (delay.to_double() / pow(10,
-                                                                        12))
+       << (N * BLOCK_SIZE / pow(1024, 2)) / (delay.to_double() / pow(10,
+                                                                     12))
        << " MB/s." << endl; // number of blocks * bytes per block *MB / time *s
 }
 

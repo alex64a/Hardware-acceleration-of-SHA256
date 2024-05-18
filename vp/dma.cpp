@@ -34,7 +34,6 @@ void Dma::b_transport(pl_t &pl, sc_core::sc_time &offset) {
     case DMA_INPUT_ADDR:
 
       iAddr = (uint32_t *)data;
-      cout << iAddr << endl;
       pl.set_response_status(TLM_OK_RESPONSE);
       break;
 
@@ -79,15 +78,8 @@ void Dma::send_to_fifo() {
   delay += sc_core::sc_time(
       floor(30 + iLen * 8 / BUS_WIDTH) * TIME_LONGEST_PATH, sc_core::SC_NS);
   //  AXI-FULL DDR TO DMA
-  /*cout << "Send to fifo" << endl;
-  cout << iLen;
-  cout << endl;
- cout << iAddr << endl;
- */ //  printf("%d", fifoToIP); // send it to fifo printf("DMA write");
   for (size_t i = 0; i < iLen; i++) {
 
-    // cout << iAddr[i];
-    // cout << endl;
     fifoToIP->write(iAddr[i]);
   }
   cout << endl << "DMA: input read from DDR, sending to HW" << endl;
@@ -103,6 +95,10 @@ void Dma::send_to_fifo() {
       }
       cout << "DMA: Read the hash, sending to CPU" << endl;
 
+      // AXI-FULL DMA TO DDR
+      delay += sc_core::sc_time((OUTPUT_SIZE * 8 / BUS_WIDTH + 30) *
+                                    TIME_LONGEST_PATH,
+                                sc_core::SC_NS);
       // sending data to ddr
       pl.set_command(tlm::TLM_WRITE_COMMAND);
       pl.set_address(DMA_HASH_ADDR);
