@@ -6,11 +6,7 @@ extern sc_core::sc_time delay;
 
 typedef tlm::tlm_base_protocol_types::tlm_payload_type pl_t;
 typedef tlm::tlm_base_protocol_types::tlm_phase_type ph_t;
-
-#define WORD_SIZE (64 / 8)
-#define RATE (1088 / 8)
-#define CAPACITY (512 / 8)
-#define SIZE (1600 / 8)
+#define BLOCK_SIZE (512 / 32)
 #define OUTPUT_SIZE (256 / 8)
 #define HEX_AMOUNT (OUTPUT_SIZE * 2 + 1)
 
@@ -30,7 +26,7 @@ typedef tlm::tlm_base_protocol_types::tlm_phase_type ph_t;
 
 #define START_CMD 0x01
 
-#define TIME_SHORTEST_PATH 2.155
+#define TIME_LONGEST_PATH 6
 #define BUS_WIDTH 64
 
 #endif

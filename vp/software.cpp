@@ -1,5 +1,6 @@
 #include "software.hpp"
 #include "string.h"
+#include "typedefs.hpp"
 #include <stdio.h>
 using namespace std;
 using namespace tlm;
@@ -66,12 +67,15 @@ void Software::pad_and_parse(unsigned char *msg, size_t len) {
   // 6.2
 
   M = (uint32_t *)msgPad;
+  cout << "M is: " << M << endl;
+  cout << "Value at M is: " << *M << endl;
+  cout << "N is: " << N << endl;
   cout << "Parsing the padded message :  " << endl;
   for (size_t i = 0; i < N * 16; i++) {
     M[i] = swapE32(M[i]);
-    cout << M[i];
   }
-  free(msgPad);
+  // TODO Da li osloboditi sad ili nakon sto se posalje ka DMA-u
+  //  free(msgPad);
 }
 
 void Software::write_dma(sc_dt::uint64 addr, unsigned char *ptr) {
@@ -95,6 +99,7 @@ void Software::write_dma(sc_dt::uint64 addr, unsigned char *ptr) {
     break;
 
   case DMA_ILEN_ADDR:
+    inputLen /= 32;
     pl.set_address(taddr);
     pl.set_data_ptr((unsigned char *)&inputLen);
     pl.set_data_length(sizeof(inputLen));
@@ -111,7 +116,7 @@ void Software::write_dma(sc_dt::uint64 addr, unsigned char *ptr) {
     SC_REPORT_ERROR("SW", "Wrong adress to write in DMA");
   }
 
-  delay += sc_core::sc_time(30 * TIME_SHORTEST_PATH, sc_core::SC_NS);
+  delay += sc_core::sc_time(30 * TIME_LONGEST_PATH, sc_core::SC_NS);
   icsoc->b_transport(pl, offset); // transport
 }
 
@@ -125,7 +130,7 @@ void Software::write_hardware(sc_dt::uint64 addr) {
   pl.set_data_ptr((unsigned char *)&N);
   pl.set_command(tlm::TLM_WRITE_COMMAND); // set command for writing
   pl.set_response_status(tlm::TLM_INCOMPLETE_RESPONSE); // set response
-  sc_time offset(6 * TIME_SHORTEST_PATH, SC_NS);
+  sc_time offset(6 * TIME_LONGEST_PATH, SC_NS);
   icsoc->b_transport(pl, offset); // transport
 
   std::cout << "\nSW: wrote to hardware" << std::endl;
@@ -136,13 +141,6 @@ void Software::app() {
   cout << endl << "Input read from file is : " << input << endl;
   cout << "Length of input is: " << inputLen << endl;
   // configure hardware
-  write_hardware(HARDWARE_BCOUNT_ADDR);
-  // configure dma
-  write_dma(DMA_INPUT_ADDR, (unsigned char *)M);
-  write_dma(DMA_HASH_ADDR, (unsigned char *)H);
-  write_dma(DMA_ILEN_ADDR);
-  // start
-  write_dma(DMA_CSR_ADDR);
   std::cout << "SW: wrote to dma, started\n" << std::endl;
 
   /*cout << endl << "Enter string to be hashed: " << endl;
@@ -151,15 +149,22 @@ void Software::app() {
    len = strlen(hash);*/
   pad_and_parse(input, inputLen);
   printf("****");
-  wait(*hwDone);
 
+  write_hardware(HARDWARE_BCOUNT_ADDR);
+  // configure dma
+  write_dma(DMA_ILEN_ADDR);
+  write_dma(DMA_INPUT_ADDR, (unsigned char *)M);
+  write_dma(DMA_HASH_ADDR, (unsigned char *)H);
+  // start
+  write_dma(DMA_CSR_ADDR);
+  wait(*hwDone);
   // compare and report
+  free(msgPad);
   cout << "Delay: " << delay << endl;
-  /* cout << "Throughput: "
-        << (blockCount * RATE / pow(1024, 2)) / (delay.to_double() / pow(10,
- 12))
-  << " MB/s." << endl; // number of blocks * bytes per block *MB / time *s
-  // */
+  cout << "Throughput: "
+       << (blockCount * RATE / pow(1024, 2)) / (delay.to_double() / pow(10,
+                                                                        12))
+       << " MB/s." << endl; // number of blocks * bytes per block *MB / time *s
 }
 
 void Software::b_transport(pl_t &pl, sc_core::sc_time &offset) {
@@ -167,7 +172,6 @@ void Software::b_transport(pl_t &pl, sc_core::sc_time &offset) {
   uint64 addr = pl.get_address();
   char *data = (char *)pl.get_data_ptr();
   unsigned int length = pl.get_data_length();
-
   // if it's a hash just give me the pointer
   if (cmd == tlm::TLM_WRITE_COMMAND) {
     if (addr == DMA_HASH_ADDR) {

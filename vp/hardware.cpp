@@ -106,7 +106,6 @@ void Hardware::hexOut(void *buffer, size_t len) {
       printf(" ");
   }
 }
-
 uint32_t Hardware::swapE32(uint32_t val) {
 
   uint32_t x = val;
@@ -123,9 +122,10 @@ void Hardware::b_transport(pl_t &pl, sc_core::sc_time &offset) {
 
   if (cmd == tlm::TLM_WRITE_COMMAND) {
     if (addr == HARDWARE_BCOUNT_ADDR) {
+
       N = *(int *)data;
-      intBuff = new uint32_t[N];
-      printf("****");
+      M = new uint32_t[N * BLOCK_SIZE + 1];
+      M[N * BLOCK_SIZE] = '\0';
       pl.set_response_status(tlm::TLM_OK_RESPONSE);
     } else
       pl.set_response_status(tlm::TLM_ADDRESS_ERROR_RESPONSE);
@@ -137,22 +137,23 @@ void Hardware::fifoCheck() {
   while (1) {
     if (fifoToIP.num_available()) {
       cout << "Internal buffer:  ";
-      for (size_t i = 0; i < N; i++) {
-        fifoToIP.read(intBuff[i]);
-        cout << intBuff[i];
+      for (size_t i = 0; i < N * BLOCK_SIZE; i++) {
+        fifoToIP.read(M[i]);
+        cout << "HW: Data" << M[i] << endl;
       }
-      cout << endl;
       cout << "HW: Read input from DMA" << endl << endl;
       hash();
+      cout << "HW: after hash" << endl;
       for (size_t i = 0; i < HEX_AMOUNT; i++) {
         fifoToDma->write(H[i]);
       }
 
       // AXI-STREAM HARDWARE TO DMA
-      delay += sc_core::sc_time(
-          OUTPUT_SIZE * 8 / BUS_WIDTH * TIME_SHORTEST_PATH, sc_core::SC_NS);
+      delay += sc_core::sc_time(OUTPUT_SIZE * 8 / BUS_WIDTH * TIME_LONGEST_PATH,
+                                sc_core::SC_NS);
       hwDone->notify(); // generate interrupt
-      delete (intBuff);
+      delete (M);
+      delete (hex);
       return;
     }
     wait(sc_core::SC_ZERO_TIME);
