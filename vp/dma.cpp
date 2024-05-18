@@ -77,7 +77,7 @@ void Dma::send_to_fifo() {
 
   // AXI-FULL DDR TO DMA
   delay += sc_core::sc_time(
-      floor(30 + iLen * 8 / BUS_WIDTH) * TIME_SHORTEST_PATH, sc_core::SC_NS);
+      floor(30 + iLen * 8 / BUS_WIDTH) * TIME_LONGEST_PATH, sc_core::SC_NS);
   //  AXI-FULL DDR TO DMA
   /*cout << "Send to fifo" << endl;
   cout << iLen;
@@ -93,7 +93,7 @@ void Dma::send_to_fifo() {
   cout << endl << "DMA: input read from DDR, sending to HW" << endl;
 
   // AXI-STREAM DMA TO HARDWARE
-  delay += sc_core::sc_time((30 + iLen * 8 / BUS_WIDTH) * TIME_SHORTEST_PATH,
+  delay += sc_core::sc_time((30 + iLen * 8 / BUS_WIDTH) * TIME_LONGEST_PATH,
                             sc_core::SC_NS);
 
   while (1) {
