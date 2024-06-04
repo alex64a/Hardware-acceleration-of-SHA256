@@ -11,6 +11,7 @@ entity controlpath is
         i_lt_N_i     : in std_logic;
         w_finished_i : in std_logic;
         load_m_o     : out std_logic;
+        j_lt_48_i    : in std_logic;
         --CONTROL SIGNAL FOR MUX
         state_o  : out std_logic_vector(2 downto 0);
         t_lt_64_i   : in std_logic;
@@ -35,7 +36,7 @@ begin
         end if;
     end process;
      
-     next_state_logic:process(state_reg, start, w_finished_i, i_lt_N_i, t_lt_64_i )
+     next_state_logic:process(state_reg, start, w_finished_i, i_lt_N_i, t_lt_64_i, j_lt_48_i )
      begin
           N_take_in_o <= '0';
           ready <= '0';
@@ -73,8 +74,11 @@ begin
      
              when SIG =>
                   state_o    <= "011";
-                  state_next <= T_PHASE;
-                     
+                  if( j_lt_48_i = '1') then
+                    state_next <= SIG;
+                  else
+                    state_next <= T_PHASE;
+                  end if;
              when T_PHASE =>
                    state_o    <= "100";
                  if t_lt_64_i = '1' then

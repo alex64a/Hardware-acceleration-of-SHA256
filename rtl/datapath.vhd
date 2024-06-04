@@ -13,7 +13,7 @@ entity datapath is
         N_i : in std_logic_vector(31 downto 0);
         
         -- data input
-        M_i : in std_logic_vector(31 downto 0);
+        M_i : in std_logic_vector(31 downto 0); 
         
         i_lt_N_o     : out std_logic;
         w_finished_o : out std_logic;
@@ -22,6 +22,7 @@ entity datapath is
         state_i  : in std_logic_vector(2 downto 0);
         compute_t_i : in std_logic;
         N_take_in_i : in std_logic;
+        j_lt_48_o   : out std_logic;
         t_lt_64_o   : out std_logic;
         
         H     : out std_logic_vector(255 downto 0)
@@ -40,11 +41,12 @@ architecture Behavioral of datapath is
     signal H_reg, H_next : v_H_t;
     signal i_reg, t_reg, T1_reg, T2_reg : std_logic_vector(31 downto 0);  -- 32-bit registers
     signal N_next, N_reg : std_logic_vector(31 downto 0);  -- 32-bit register
-    signal i_next, t_next, T1_next, T2_next : std_logic_vector(31 downto 0);  -- 32-bit next state register]
+    signal j_next, j_reg : std_logic_vector(31 downto 0);  -- 32-bit register
+    signal i_next, t_next, T1_next, T2_next : std_logic_vector(31 downto 0);  -- 32-bit next state register
     
     signal k_s : std_logic_vector(31 downto 0);
     signal T1_w_select_s : std_logic_vector(31 downto 0);
-    signal t_lt_64_s, i_lt_N_s : std_logic;
+    signal t_lt_64_s, i_lt_N_s, j_lt_48_s : std_logic;
     signal cnt_o_s : std_logic_vector(4 downto 0);
     signal v_ch_s : std_logic_vector(31 downto 0);
     
@@ -66,6 +68,11 @@ begin
                 end if;
             end process;
         end generate;
+                    
+        we_comps:if i < 16 generate
+            we_W_s(i) <= '1' when (cnt_o_s = std_logic_vector(to_unsigned(i,5)))
+            else '0';
+        end generate;
         
         after_16_regs:if i > 15 generate
             process(clk)
@@ -80,13 +87,7 @@ begin
             end process;
         end generate;
         
-        we_comps:if i < 16 generate
-            we_W_s(i) <= '1' when (cnt_o_s = std_logic_vector(to_unsigned(i,5)))
-            else '0';
-        end generate;
-        
         after_16_muxes:if i > 15 generate 
-        --w_s(i) <= W_reg(i-15)(6 downto 0) &  W_reg(i-15)(31 downto 7);
             with state_i select W_next(i) <=
               (others => '0')  when "000",
               std_logic_vector(
@@ -99,10 +100,6 @@ begin
                               shift_right(unsigned(W_reg(i - 15)), 3))  + 
                               unsigned(W_reg(i - 16)))
                           ) when "011",
---              ((W_reg(i-2)(16 downto 0) & W_reg(i-2)(31 downto 17)) xor (W_reg(i-2)(18 downto 0) & W_reg(i-2)(31 downto 19))) xor
---              (W_reg(i-2)(9 downto 0) & W_reg(i-2)(31 downto 10)) + std_logic_vector(unsigned(W_reg(i-7)) +
---              unsigned(w_s(i))) xor ((W_reg(i-15)(17 downto 0) & W_reg(i-15)(31 downto 18)) xor
---              std_logic_vector(unsigned(shift_right(unsigned(W_reg(i-15)), 3)) + unsigned(W_reg(i-16)))) when "011",
               W_reg(i) when others;
          end generate;
    end generate;
@@ -228,6 +225,7 @@ begin
             i_reg <= (others => '0');
             N_reg <= (others => '0');
             t_reg <= (others => '0');
+            j_reg <= (others => '0');
             T1_reg <= (others => '0');
             T2_reg <= (others => '0');
         elsif rising_edge(clk) then
@@ -235,6 +233,7 @@ begin
             i_reg <= i_next;
             N_reg <= N_next;
             t_reg <= t_next;
+            j_reg <= j_next;
             T1_reg <= T1_next;
             T2_reg <= T2_next;
         end if;
@@ -244,7 +243,25 @@ begin
     with state_i select i_next <=
       (others => '0')  when "000",
       std_logic_vector(unsigned(i_reg) + to_unsigned(1, 32)) when "110",
-      i_reg when others;    
+      i_reg when others; 
+          
+    j_mux:process (state_i, j_lt_48_s, j_reg) is
+      begin
+      case state_i is
+          when "000" =>   
+              j_next <= (others => '0');
+              
+          when "011" =>
+              if(j_lt_48_s = '1') then 
+                  j_next <= std_logic_vector(unsigned(j_reg) + to_unsigned(1, 32));
+              else
+                  j_next <= j_reg;
+              end if;
+          
+          when others =>
+              j_next <= j_reg;
+          end case;
+      end process;   
       
       t_mux:
       with state_i select t_next <=
@@ -261,10 +278,15 @@ begin
             
         when "100" =>
             if(t_lt_64_s = '1') then 
-                T1_next <= std_logic_vector( unsigned((v_reg(7)(5 downto 0) & v_reg(7)(31 downto 6)) xor 
-                (v_reg(7)(10 downto 0) & v_reg(7)(31 downto 11)) xor (v_reg(7)(24 downto 0) & v_reg(7)(31 downto 25))) + 
-                unsigned(v_reg(4)) + unsigned((v_reg(4) and v_reg(5)) xor (not v_reg(4) and v_reg(6))) + unsigned(k_s) +
-                unsigned(T1_w_select_s) );
+                T1_next <= std_logic_vector(
+                            (unsigned( rotate_right(unsigned(v_reg(4)), 6)) xor 
+                            unsigned( rotate_right(unsigned(v_reg(4)), 11)) xor 
+                            unsigned( rotate_right(unsigned(v_reg(4)), 25))) + 
+                            unsigned(v_reg(7)) + 
+                            unsigned((v_reg(4) and v_reg(5)) xor (not v_reg(4) and v_reg(6))) + 
+                            unsigned(k_s) + 
+                            unsigned(T1_w_select_s)
+                          );
             else
                 T1_next <= T1_reg;
             end if;
@@ -275,137 +297,137 @@ begin
     end process;
 
       coefficients_mux: with t_reg select k_s <=        
-      x"428a2f98" when x"00000001",
-      x"71374491" when x"00000002",
-      x"b5c0fbcf" when x"00000003",
-      x"e9b5dba5" when x"00000004",
-      x"3956c25b" when x"00000005",
-      x"59f111f1" when x"00000006",
-      x"923f82a4" when x"00000007",
-      x"ab1c5ed5" when x"00000008",
-      x"d807aa98" when x"00000009",
-      x"12835b01" when x"0000000A",
-      x"243185be" when x"0000000B",
-      x"550c7dc3" when x"0000000C",
-      x"72be5d74" when x"0000000D",
-      x"80deb1fe" when x"0000000E",
-      x"9bdc06a7" when x"0000000F",
-      x"c19bf174" when x"00000010",
-      x"e49b69c1" when x"00000011",
-      x"efbe4786" when x"00000012",
-      x"0fc19dc6" when x"00000013",
-      x"240ca1cc" when x"00000014",
-      x"2de92c6f" when x"00000015",
-      x"4a7484aa" when x"00000016",
-      x"5cb0a9dc" when x"00000017",
-      x"76f988da" when x"00000018",
-      x"983e5152" when x"00000019",
-      x"a831c66d" when x"0000001A",
-      x"b00327c8" when x"0000001B",
-      x"bf597fc7" when x"0000001C",
-      x"c6e00bf3" when x"0000001D",
-      x"d5a79147" when x"0000001E",
-      x"06ca6351" when x"0000001F",
-      x"14292967" when x"00000020",
-      x"27b70a85" when x"00000021",
-      x"2e1b2138" when x"00000022",
-      x"4d2c6dfc" when x"00000023",
-      x"53380d13" when x"00000024",
-      x"650a7354" when x"00000025",
-      x"766a0abb" when x"00000026",
-      x"81c2c92e" when x"00000027",
-      x"92722c85" when x"00000028",
-      x"a2bfe8a1" when x"00000029",
-      x"a81a664b" when x"0000002A",
-      x"c24b8b70" when x"0000002B",
-      x"c76c51a3" when x"0000002C",
-      x"d192e819" when x"0000002D",
-      x"d6990624" when x"0000002E",
-      x"f40e3585" when x"0000002F",
-      x"106aa070" when x"00000030",
-      x"19a4c116" when x"00000031",
-      x"1e376c08" when x"00000032",
-      x"2748774c" when x"00000033",
-      x"34b0bcb5" when x"00000034",
-      x"391c0cb3" when x"00000035",
-      x"4ed8aa4a" when x"00000036",
-      x"5b9cca4f" when x"00000037",
-      x"682e6ff3" when x"00000038",
-      x"748f82ee" when x"00000039",
-      x"78a5636f" when x"0000003A",
-      x"84c87814" when x"0000003B",
-      x"8cc70208" when x"0000003C",
-      x"90befffa" when x"0000003D",
-      x"a4506ceb" when x"0000003E",
-      x"bef9a3f7" when x"0000003F",
-      x"c67178f2" when x"00000040",
+      x"428a2f98" when x"00000000",
+      x"71374491" when x"00000001",
+      x"b5c0fbcf" when x"00000002",
+      x"e9b5dba5" when x"00000003",
+      x"3956c25b" when x"00000004",
+      x"59f111f1" when x"00000005",
+      x"923f82a4" when x"00000006",
+      x"ab1c5ed5" when x"00000007",
+      x"d807aa98" when x"00000008",
+      x"12835b01" when x"00000009",
+      x"243185be" when x"0000000A",
+      x"550c7dc3" when x"0000000B",
+      x"72be5d74" when x"0000000C",
+      x"80deb1fe" when x"0000000D",
+      x"9bdc06a7" when x"0000000E",
+      x"c19bf174" when x"0000000F",
+      x"e49b69c1" when x"00000010",
+      x"efbe4786" when x"00000011",
+      x"0fc19dc6" when x"00000012",
+      x"240ca1cc" when x"00000013",
+      x"2de92c6f" when x"00000014",
+      x"4a7484aa" when x"00000015",
+      x"5cb0a9dc" when x"00000016",
+      x"76f988da" when x"00000017",
+      x"983e5152" when x"00000018",
+      x"a831c66d" when x"00000019",
+      x"b00327c8" when x"0000001A",
+      x"bf597fc7" when x"0000001B",
+      x"c6e00bf3" when x"0000001C",
+      x"d5a79147" when x"0000001D",
+      x"06ca6351" when x"0000001E",
+      x"14292967" when x"0000001F",
+      x"27b70a85" when x"00000020",
+      x"2e1b2138" when x"00000021",
+      x"4d2c6dfc" when x"00000022",
+      x"53380d13" when x"00000023",
+      x"650a7354" when x"00000024",
+      x"766a0abb" when x"00000025",
+      x"81c2c92e" when x"00000026",
+      x"92722c85" when x"00000027",
+      x"a2bfe8a1" when x"00000028",
+      x"a81a664b" when x"00000029",
+      x"c24b8b70" when x"0000002A",
+      x"c76c51a3" when x"0000002B",
+      x"d192e819" when x"0000002C",
+      x"d6990624" when x"0000002D",
+      x"f40e3585" when x"0000002E",
+      x"106aa070" when x"0000002F",
+      x"19a4c116" when x"00000030",
+      x"1e376c08" when x"00000031",
+      x"2748774c" when x"00000032",
+      x"34b0bcb5" when x"00000033",
+      x"391c0cb3" when x"00000034",
+      x"4ed8aa4a" when x"00000035",
+      x"5b9cca4f" when x"00000036",
+      x"682e6ff3" when x"00000037",
+      x"748f82ee" when x"00000038",
+      x"78a5636f" when x"00000039",
+      x"84c87814" when x"0000003A",
+      x"8cc70208" when x"0000003B",
+      x"90befffa" when x"0000003C",
+      x"a4506ceb" when x"0000003D",
+      x"bef9a3f7" when x"0000003E",
+      x"c67178f2" when x"0000003F",
       (others => '0') when others;      
       
       T1_select_w_mux: with t_reg select T1_w_select_s <=     
-      W_reg(0) when x"00000001",
-      W_reg(1) when x"00000002",
-      W_reg(2) when x"00000003",
-      W_reg(3) when x"00000004",
-      W_reg(4) when x"00000005",
-      W_reg(5) when x"00000006",
-      W_reg(6) when x"00000007",
-      W_reg(7) when x"00000008",
-      W_reg(8) when x"00000009",
-      W_reg(9) when x"0000000A",
-      W_reg(10) when x"0000000B",
-      W_reg(11) when x"0000000C",
-      W_reg(12) when x"0000000D",
-      W_reg(13) when x"0000000E",
-      W_reg(14) when x"0000000F",
-      W_reg(15) when x"00000010",
-      W_reg(16) when x"00000011",
-      W_reg(17) when x"00000012",
-      W_reg(18) when x"00000013",
-      W_reg(19) when x"00000014",
-      W_reg(20) when x"00000015",
-      W_reg(21) when x"00000016",
-      W_reg(22) when x"00000017",
-      W_reg(23) when x"00000018",
-      W_reg(24) when x"00000019",
-      W_reg(25) when x"0000001A",
-      W_reg(26) when x"0000001B",
-      W_reg(27) when x"0000001C",
-      W_reg(28) when x"0000001D",
-      W_reg(29) when x"0000001E",
-      W_reg(30) when x"0000001F",
-      W_reg(31) when x"00000020",
-      W_reg(32) when x"00000021",
-      W_reg(33) when x"00000022",
-      W_reg(34) when x"00000023",
-      W_reg(35) when x"00000024",
-      W_reg(36) when x"00000025",
-      W_reg(37) when x"00000026",
-      W_reg(38) when x"00000027",
-      W_reg(39) when x"00000028",
-      W_reg(40) when x"00000029",
-      W_reg(41) when x"0000002A",
-      W_reg(42) when x"0000002B",
-      W_reg(43) when x"0000002C",
-      W_reg(44) when x"0000002D",
-      W_reg(45) when x"0000002E",
-      W_reg(46) when x"0000002F",
-      W_reg(47) when x"00000030",
-      W_reg(48) when x"00000031",
-      W_reg(49) when x"00000032",
-      W_reg(50) when x"00000033",
-      W_reg(51) when x"00000034",
-      W_reg(52) when x"00000035",
-      W_reg(53) when x"00000036",
-      W_reg(54) when x"00000037",
-      W_reg(55) when x"00000038",
-      W_reg(56) when x"00000039",
-      W_reg(57) when x"0000003A",
-      W_reg(58) when x"0000003B",
-      W_reg(59) when x"0000003C",
-      W_reg(60) when x"0000003D",
-      W_reg(61) when x"0000003E",
-      W_reg(62) when x"0000003F",
-      W_reg(63) when x"00000040",
+      W_reg(0)  when x"00000000",
+      W_reg(1)  when x"00000001",
+      W_reg(2)  when x"00000002",
+      W_reg(3)  when x"00000003",
+      W_reg(4)  when x"00000004",
+      W_reg(5)  when x"00000005",
+      W_reg(6)  when x"00000006",
+      W_reg(7)  when x"00000007",
+      W_reg(8)  when x"00000008",
+      W_reg(9)  when x"00000009",
+      W_reg(10) when x"0000000A",
+      W_reg(11) when x"0000000B",
+      W_reg(12) when x"0000000C",
+      W_reg(13) when x"0000000D",
+      W_reg(14) when x"0000000E",
+      W_reg(15) when x"0000000F",
+      W_reg(16) when x"00000010",
+      W_reg(17) when x"00000011",
+      W_reg(18) when x"00000012",
+      W_reg(19) when x"00000013",
+      W_reg(20) when x"00000014",
+      W_reg(21) when x"00000015",
+      W_reg(22) when x"00000016",
+      W_reg(23) when x"00000017",
+      W_reg(24) when x"00000018",
+      W_reg(25) when x"00000019",
+      W_reg(26) when x"0000001A",
+      W_reg(27) when x"0000001B",
+      W_reg(28) when x"0000001C",
+      W_reg(29) when x"0000001D",
+      W_reg(30) when x"0000001E",
+      W_reg(31) when x"0000001F",
+      W_reg(32) when x"00000020",
+      W_reg(33) when x"00000021",
+      W_reg(34) when x"00000022",
+      W_reg(35) when x"00000023",
+      W_reg(36) when x"00000024",
+      W_reg(37) when x"00000025",
+      W_reg(38) when x"00000026",
+      W_reg(39) when x"00000027",
+      W_reg(40) when x"00000028",
+      W_reg(41) when x"00000029",
+      W_reg(42) when x"0000002A",
+      W_reg(43) when x"0000002B",
+      W_reg(44) when x"0000002C",
+      W_reg(45) when x"0000002D",
+      W_reg(46) when x"0000002E",
+      W_reg(47) when x"0000002F",
+      W_reg(48) when x"00000030",
+      W_reg(49) when x"00000031",
+      W_reg(50) when x"00000032",
+      W_reg(51) when x"00000033",
+      W_reg(52) when x"00000034",
+      W_reg(53) when x"00000035",
+      W_reg(54) when x"00000036",
+      W_reg(55) when x"00000037",
+      W_reg(56) when x"00000038",
+      W_reg(57) when x"00000039",
+      W_reg(58) when x"0000003A",
+      W_reg(59) when x"0000003B",
+      W_reg(60) when x"0000003C",
+      W_reg(61) when x"0000003D",
+      W_reg(62) when x"0000003E",
+      W_reg(63) when x"0000003F",
       (others => '0') when others;
       
         T2_mux:process (state_i, v_reg, t_lt_64_s, T2_reg) is
@@ -417,9 +439,12 @@ begin
                 
             when "100" =>
                 if(t_lt_64_s = '1') then 
-                    T2_next <= std_logic_vector( unsigned((v_reg(0)(1 downto 0) & v_reg(0)(31 downto 2)) xor 
-                    (v_reg(0)(12 downto 0) & v_reg(0)(31 downto 13)) xor (v_reg(0)(21 downto 0) & v_reg(0)(31 downto 22))) + 
-                    unsigned(v_ch_s) );
+                    T2_next <= std_logic_vector(
+                                (unsigned(rotate_right(unsigned(v_reg(0)), 2)) xor
+                                rotate_right(unsigned(v_reg(0)), 13) xor 
+                                rotate_right(unsigned(v_reg(0)), 22))    
+                               + unsigned(v_ch_s)
+                            );
                 else
                     T2_next <= T2_reg;
                 end if;
@@ -449,14 +474,25 @@ begin
       
       t_lt_64_o <= t_lt_64_s;
       
-      i_comparator: process (i_reg, N_reg)
-      begin
-        if( i_reg < N_reg ) then
-            i_lt_N_s <= '1';
-        else
-            i_lt_N_s <= '0';
-        end if;
-      end process;
+        i_comparator: process (i_reg, N_reg)
+        begin
+          if( i_reg < N_reg ) then
+              i_lt_N_s <= '1';
+          else
+              i_lt_N_s <= '0';
+          end if;
+        end process;
+        
+        j_comparator: process (j_reg)
+        begin
+          if( j_reg < std_logic_vector(to_unsigned(47, 32)) ) then
+              j_lt_48_s <= '1';
+          else
+              j_lt_48_s <= '0';
+          end if;
+        end process;
+        
+      j_lt_48_o <= j_lt_48_s;
       
       i_lt_N_o <= i_lt_N_s;
       

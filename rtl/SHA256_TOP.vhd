@@ -21,6 +21,7 @@ architecture rtl of SHA256_TOP is
 
     -- Signals for interconnecting datapath and controlpath
     signal i_lt_N_s     : std_logic;
+    signal j_lt_48_s     : std_logic;
     signal w_finished_s : std_logic;
     signal load_m_s     : std_logic;
     signal state_s      : std_logic_vector(2 downto 0);
@@ -38,6 +39,7 @@ begin
             N_i           => N_i,
             M_i           => M_i,
             i_lt_N_o      => i_lt_N_s,
+            j_lt_48_o      => j_lt_48_s,
             w_finished_o  => w_finished_s,
             load_m_i      => load_m_s,
             state_i       => state_s,
@@ -54,6 +56,7 @@ begin
             reset         => reset,
             start         => start,
             i_lt_N_i      => i_lt_N_s,
+            j_lt_48_i      => j_lt_48_s,
             w_finished_i  => w_finished_s,
             load_m_o      => load_m_s,
             state_o       => state_s,

@@ -30,7 +30,7 @@ architecture behavior of tb_SHA256_TOP is
     signal ready : std_logic;
 
     -- Clock period definition
-    constant clk_period : time := 10 ns;
+    constant clk_period : time := 10.15 ns;
 
 begin
 
