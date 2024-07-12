@@ -16,6 +16,10 @@
 #include <linux/ioport.h>          //ioremap
 
 #define DRIVER_NAME "sha256"
+#define BUFF_SIZE 65
+#define OUTPUT_SIZE (256 / 8)
+#define HEX_AMOUNT OUTPUT_SIZE * 2 + 1
+
 MODULE_LICENSE("Dual BSD/GPL");
 
 /** @brief Function to pad the inputed message
@@ -101,8 +105,13 @@ uint32_t v[8];
 uint32_t W[64];
 uint32_t *M;
 uint32_t T1, T2;
-char *buff;
-size_t len;
+int endRead = 0;
+int pos = 0;
+bool result_ready = 0;
+unsigned char hexAmount[HEX_AMOUNT];
+
+// Constants declaration
+const int sha256BlockSize = 512;
 
 /** @brief Constants for the SHA256 algorithm
  */
@@ -137,8 +146,6 @@ static struct class *my_class;
 static struct device *my_device;
 static struct cdev *my_cdev;
 static struct sha256_info *lp = NULL;
-
-int endRead = 0;
 
 static int sha256_probe(struct platform_device *pdev);
 static int sha256_remove(struct platform_device *pdev);
@@ -246,33 +253,84 @@ int sha256_close(struct inode *pinode, struct file *pfile)
 
 ssize_t sha256_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset)
 {
-    int error_count = 0;
+    // squeeze into file
+    char buff[BUFF_SIZE];
+    int ret, len;
 
-    error_count = copy_to_user(buffer, buff, len);
-
-    if (error_count == 0)
+    if (result_ready == 0)
     {
-        pr_info("Sent %d characters to the user\n", len);
-        return (len = 0);
+        printk(KERN_ERR "Result not ready ");
+        return 0;
     }
-    else
+
+    if (endRead)
     {
-        pr_err("Failed to send %d characters to the user\n", error_count);
+        endRead = 0;
+        pos = 0;
+        result_ready = 0;
+        return 0;
+    }
+
+    if (pos < BUFF_SIZE)
+    {
+        len = scnprintf(buff, BUFF_SIZE, "%c", hexAmount[pos++]);
+        ret = copy_to_user(buffer, buff, HEX_AMOUNT);
+    }
+    else if (pos == BUFF_SIZE - 1)
+    {
+        len = scnprintf(buff, BUFF_SIZE, "%c\n", hexAmount[pos++]);
+        ret = copy_to_user(buffer, buff, HEX_AMOUNT);
+    }
+    else if (pos == BUFF_SIZE) // 65
+        endRead = 1;
+
+    if (ret)
+    {
         return -EFAULT;
     }
+
+    return len;
 }
 
 ssize_t sha256_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset)
 {
+    char *buff;
+    size_t len;
+    int ret;
+    int blockCount;
+    result_ready = 0;
+    if (length + 1 == sha256BlockSize)
+    {
+        buff = (unsigned char *)kmalloc(sha256BlockSize + 1, GFP_KERNEL);
+        blockCount = 1;
+    }
+    else
+    {
+        blockCount = length / sha256BlockSize;
+        blockCount++;
+        buff = (unsigned char *)kmalloc(blockCount * sha256BlockSize + 1, GFP_KERNEL);
+        printk(KERN_INFO "Successfully allocated memory, blockCount: %d", blockCount);
+    }
 
-    sprintf(buff, "%.*s", length, buffer);
+    if (!buff)
+        return -EFAULT;
+
+    ret = copy_from_user(buff, buffer, length);
+    if (ret)
+        return -EFAULT;
+
+    buff[length] = '\0';
+    printk(KERN_INFO "Successfully wrote buff: %s", buff);
     len = strlen(buff);
-    pr_info("Received %zu characters from the user\n", length);
-    printk(KERN_INFO "Successfully wrote to the file\n");
 
+    // Padding and hashing
     Pad(buff, len);
     Hash();
     printHash();
+
+    kfree(buff);
+
+    result_ready = 1;
 
     return length;
 }
@@ -409,6 +467,16 @@ void Pad(char *msg, size_t len)
     msgPad[len] = 0x80;
     l = swapE64(l);
     memcpy(msgPad + (msgSize / 8) - 8, &l, 8);
+    N = msgSize / 512;
+
+    // 6.2
+
+    M = (uint32_t *)msgPad;
+
+    for (size_t i = 0; i < N * 16; i++)
+    {
+        M[i] = swapE32(M[i]);
+    }
 }
 
 void Hash()
