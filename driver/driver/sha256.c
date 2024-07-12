@@ -14,15 +14,14 @@
 #include <linux/slab.h>            //kmalloc kfree
 #include <linux/platform_device.h> //platform driver
 #include <linux/ioport.h>          //ioremap
-#define BUFF_SIZE 20
-#define BUFF_SIZE 20
+
 #define DRIVER_NAME "sha256"
 MODULE_LICENSE("Dual BSD/GPL");
 
 /** @brief Function to pad the inputed message
- *  @param unsigned char* buff, @param int length
+ *  @param char* buff, @param size_t length
  */
-void Pad(unsigned char *buff, int length);
+void Pad(char *buff, size_t length);
 
 /** @brief Main function of the SHA256 algorithm
  */
@@ -72,10 +71,15 @@ uint32_t sig0(uint32_t x);
  */
 uint32_t sig1(uint32_t x);
 
-/** @brief swap byte Endian
+/** @brief swap byte Endian 32 bit
  *  @param uint32_t val
  */
 uint32_t swapE32(uint32_t val);
+
+/** @brief swap byte Endian 64 bit
+ *  @param uint64_t val
+ */
+uint64_t swapE64(uint64_t val);
 
 /** @brief function to help with printing hex numbers
  *  @param void* buffer, @param size_t len
@@ -84,7 +88,7 @@ void hex(void *buffer, size_t len);
 
 /** @brief function to print the output hash
  */
-void printHash();
+void printHash(void);
 
 // Variable declarations
 uint64_t l;
@@ -97,6 +101,8 @@ uint32_t v[8];
 uint32_t W[64];
 uint32_t *M;
 uint32_t T1, T2;
+char *buff;
+size_t len;
 
 /** @brief Constants for the SHA256 algorithm
  */
@@ -152,24 +158,24 @@ struct file_operations my_fops =
         .release = sha256_close,
 };
 
-static struct of_device_id sha256_of_match[] = {
-    {
-        .compatible = "sha256_gpio",
-    },
-    {/* end of list */},
-};
+// static struct of_device_id sha256_of_match[] = {
+//     {
+//         .compatible = "sha256",
+//     },
+//     {/* end of list */},
+// };
 
 static struct platform_driver sha256_driver = {
     .driver = {
         .name = DRIVER_NAME,
         .owner = THIS_MODULE,
-        .of_match_table = sha256_of_match,
+        //  .of_match_table = sha256_of_match,
     },
     .probe = sha256_probe,
     .remove = sha256_remove,
 };
 
-MODULE_DEVICE_TABLE(of, sha256_of_match);
+// MODULE_DEVICE_TABLE(of, sha256_of_match);
 
 static int sha256_probe(struct platform_device *pdev)
 {
@@ -228,90 +234,45 @@ static int sha256_remove(struct platform_device *pdev)
 
 int sha256_open(struct inode *pinode, struct file *pfile)
 {
-    // printk(KERN_INFO "Succesfully opened sha256\n");
+    printk(KERN_INFO "Succesfully opened sha256\n");
     return 0;
 }
 
 int sha256_close(struct inode *pinode, struct file *pfile)
 {
-    // printk(KERN_INFO "Succesfully closed sha256\n");
+    printk(KERN_INFO "Succesfully closed sha256\n");
     return 0;
 }
 
 ssize_t sha256_read(struct file *pfile, char __user *buffer, size_t length, loff_t *offset)
 {
-    int ret;
-    int len = 0;
-    u32 sha256_val = 0;
-    int i = 0;
-    char buff[BUFF_SIZE];
-    if (endRead)
+    int error_count = 0;
+
+    error_count = copy_to_user(buffer, buff, len);
+
+    if (error_count == 0)
     {
-        endRead = 0;
-        return 0;
+        pr_info("Sent %d characters to the user\n", len);
+        return (len = 0);
     }
-
-    sha256_val = ioread32(lp->base_addr);
-
-    // buffer: 0b????
-    // index:  012345
-
-    buff[0] = '0';
-    buff[1] = 'b';
-    for (i = 0; i < 4; i++)
+    else
     {
-        if ((sha256_val >> i) & 0x01)
-            buff[5 - i] = '1';
-        else
-            buff[5 - i] = '0';
-    }
-    buff[6] = '\n';
-    len = 7;
-    ret = copy_to_user(buffer, buff, len);
-    if (ret)
+        pr_err("Failed to send %d characters to the user\n", error_count);
         return -EFAULT;
-    // printk(KERN_INFO "Succesfully read\n");
-    endRead = 1;
-
-    return len;
+    }
 }
 
 ssize_t sha256_write(struct file *pfile, const char __user *buffer, size_t length, loff_t *offset)
 {
-    char buff[BUFF_SIZE];
-    int ret = 0;
-    long int sha256_val = 0;
 
-    ret = copy_from_user(buff, buffer, length);
-    if (ret)
-        return -EFAULT;
-    buff[length] = '\0';
+    sprintf(buff, "%.*s", length, buffer);
+    len = strlen(buff);
+    pr_info("Received %zu characters from the user\n", length);
+    printk(KERN_INFO "Successfully wrote to the file\n");
 
-    // HEX  INPUT
-    if (buff[0] == '0' && (buff[1] == 'x' || buff[1] == 'X'))
-    {
-        ret = kstrtol(buff + 2, 16, &sha256_val);
-    }
-    // BINARY INPUT
-    else if (buff[0] == '0' && (buff[1] == 'b' || buff[1] == 'B'))
-    {
-        ret = kstrtol(buff + 2, 2, &sha256_val);
-    }
-    // DECIMAL INPUT
-    else
-    {
-        ret = kstrtol(buff, 10, &sha256_val);
-    }
-
-    if (!ret)
-    {
-        iowrite32((u32)sha256_val, lp->base_addr);
-        // printk(KERN_INFO "Succesfully wrote value %#x",(u32)sha256_val);
-    }
-    else
-    {
-        printk(KERN_INFO "Wrong command format\n");
-    }
+    Pad(buff, len);
+    Hash();
+    printHash();
 
     return length;
 }
@@ -330,7 +291,7 @@ static int __init sha256_init(void)
     }
     printk(KERN_INFO "char device region allocated\n");
 
-    my_class = class_create(THIS_MODULE, "sha256_class");
+    my_class = class_create("sha256_class");
     if (my_class == NULL)
     {
         printk(KERN_ERR "failed to create class\n");
@@ -356,7 +317,7 @@ static int __init sha256_init(void)
         goto fail_2;
     }
     printk(KERN_INFO "cdev added\n");
-    printk(KERN_INFO "Hello world\n");
+    printk(KERN_INFO "Hello world from SHA256\n");
 
     return platform_driver_register(&sha256_driver);
 
@@ -405,14 +366,22 @@ uint32_t swapE32(uint32_t val)
     x = (x & 0xff00ff00) >> 8 | (x & 0x00ff00ff) << 8;
     return x;
 }
+uint64_t swapE64(uint64_t val)
+{
+    uint64_t x = val;
+    x = (x & 0xffffffff00000000) >> 32 | (x & 0x00000000ffffffff) << 32;
+    x = (x & 0xffff0000ffff0000) >> 16 | (x & 0x0000ffff0000ffff) << 16;
+    x = (x & 0xff00ff00ff00ff00) >> 8 | (x & 0x00ff00ff00ff00ff) << 8;
+    return x;
+}
 
 void hex(void *buffer, size_t len)
 {
     for (size_t i = 0; i < len; i++)
     {
-        printf("%02x", ((char *)buffer)[i] & 0xff);
+        pr_info("%02x", ((char *)buffer)[i] & 0xff);
         if (i % 4 == 3)
-            printf(" ");
+            pr_info(" ");
     }
 }
 
@@ -423,8 +392,68 @@ void printHash()
         H[i] = swapE32(H[i]);
         hex(&H[i], 4);
     }
-    printf("\n");
-    free(msgPad);
+    pr_info("\n");
+    kfree(msgPad);
+}
+
+void Pad(char *msg, size_t len)
+{
+    l = len * sizeof(char) * 8;
+    k = (448 - l - 1) % 512;
+    if (k <= 0)
+        k += 512;
+    msgSize = l + 1 + k + 64;
+
+    msgPad = (char *)kcalloc((msgSize / 8), sizeof(char), GFP_KERNEL);
+    memcpy(msgPad, msg, len);
+    msgPad[len] = 0x80;
+    l = swapE64(l);
+    memcpy(msgPad + (msgSize / 8) - 8, &l, 8);
+}
+
+void Hash()
+{
+    // 6.2.2
+    for (size_t i = 0; i < N; i++)
+    {
+        // 1
+        for (size_t t = 0; t < 16; t++)
+        {
+            W[t] = M[i * 16 + t];
+        }
+        for (size_t t = 16; t < 64; t++)
+        {
+            W[t] = sig1(W[t - 2]) + W[t - 7] + sig0(W[t - 15]) + W[t - 16];
+        }
+
+        // 2
+        for (size_t t = 0; t < 8; t++)
+        {
+            v[t] = H[t];
+        }
+
+        // 3
+        for (size_t t = 0; t < 64; t++)
+        {
+            // a=0 b=1 c=2 d=3 e=4 f=5 g=6 h=7
+            T1 = v[7] + ep1(v[4]) + Ch(v[4], v[5], v[6]) + K[t] + W[t];
+            T2 = ep0(v[0]) + Maj(v[0], v[1], v[2]);
+
+            v[7] = v[6];
+            v[6] = v[5];
+            v[5] = v[4];
+            v[4] = v[3] + T1;
+            v[3] = v[2];
+            v[2] = v[1];
+            v[1] = v[0];
+            v[0] = T1 + T2;
+        }
+
+        for (size_t t = 0; t < 8; t++)
+        {
+            H[t] += v[t];
+        }
+    }
 }
 
 module_init(sha256_init);
