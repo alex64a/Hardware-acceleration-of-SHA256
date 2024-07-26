@@ -17,9 +17,6 @@ class sha256_monitor extends uvm_monitor;
    // current transaction
    sha256_seq_item curr_it;
 
-   // coverage can go here
-   // ...
-
    function new(string name = "sha256_monitor", uvm_component parent = null);
       super.new(name,parent);      
       item_collected_port = new("item_collected_port", this);
@@ -33,13 +30,11 @@ class sha256_monitor extends uvm_monitor;
    endfunction : connect_phase
 
    task main_phase(uvm_phase phase);
-      // forever begin
-      // curr_it = sha256_seq_item::type_id::create("curr_it", this);
-      // ...
-      // collect transactions
-      // ...
-      // item_collected_port.write(curr_it);
-      // end
+     forever begin
+      curr_it = sha256_seq_item::type_id::create("curr_it", this);
+    
+      item_collected_port.write(curr_it);
+      end
    endtask : main_phase
 
 endclass : sha256_monitor

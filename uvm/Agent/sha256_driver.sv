@@ -26,6 +26,11 @@ class sha256_driver extends uvm_driver#(sha256_seq_item);
                    UVM_HIGH)
          // do actual driving here
 			   /* TODO */
+            vif.M_i = req.M_i;
+            vif.N_i = req.N_i;
+            vif.H = req.H;
+            vif.start = req.start;
+            vif.ready = req.ready;
          seq_item_port.item_done();
       end
    endtask : main_phase
