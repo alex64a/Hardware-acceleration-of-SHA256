@@ -6,11 +6,11 @@ parameter OUTPUT_WIDTH = 64;
 
 class sha256_seq_item extends uvm_sequence_item;
 
-      rand bit start;
-      rand bit ready;
-      rand logic [DATA_WIDTH - 1 : 0] N_i;
-      rand logic [DATA_WIDTH - 1 : 0] M_i;
-      rand logic [OUTPUT_WIDTH - 1 : 0] H;
+      logic start;
+      logic ready;
+      logic [DATA_WIDTH - 1 : 0] N_i;
+      logic [DATA_WIDTH - 1 : 0] M_i;
+      logic [OUTPUT_WIDTH - 1 : 0] H;
 
        `uvm_object_utils_begin(sha256_seq_item)
         `uvm_field_int(start, UVM_DEFAULT);
