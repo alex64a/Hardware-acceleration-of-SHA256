@@ -13,24 +13,14 @@ module sha256_verif_top;
 
    // DUT
    sha256_top DUT(
-                .c_clk        ( clk ),
+                .clk          ( clk ),
                 .reset        ( rst ),
-                .out_data1    ( sha256_vif.out_data1 ),
-                .out_data2    ( sha256_vif.out_data2 ),
-                .out_data3    ( sha256_vif.out_data3 ),
-                .out_data4    ( sha256_vif.out_data4 ),
-                .out_resp1    ( sha256_vif.out_resp1 ),
-                .out_resp2    ( sha256_vif.out_resp2 ),
-                .out_resp3    ( sha256_vif.out_resp3 ),
-                .out_resp4    ( sha256_vif.out_resp4 ),
-                .req1_cmd_in  ( sha256_vif.req1_cmd_in ),
-                .req1_data_in ( sha256_vif.req1_data_in ),
-                .req2_cmd_in  ( sha256_vif.req2_cmd_in ),
-                .req2_data_in ( sha256_vif.req2_data_in ),
-                .req3_cmd_in  ( sha256_vif.req3_cmd_in ),
-                .req3_data_in ( sha256_vif.req3_data_in ),
-                .req4_cmd_in  ( sha256_vif.req4_cmd_in ),
-                .req4_data_in ( sha256_vif.req4_data_in )
+                .N_i    (sha256_vif.N_i),
+                .M_i    (sha256_vif.M_i),
+                .H      (sha256_vif.H),
+                .start  (sha256_vif.start),
+                .ready  (sha256_vif.ready)
+              
                 );
 
    // run test

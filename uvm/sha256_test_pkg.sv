@@ -8,11 +8,11 @@ package sha256_test_pkg;
 
    import sha256_agent_pkg::*;
    import sha256_seq_pkg::*;
-   import configurations_pkg::*;   
+   import sha256_pkg::*;   
 `include "sha256_env.sv"   
-`include "test_base.sv"
-`include "test_simple.sv"
-`include "test_simple_2.sv"
+`include "sha256_base.sv"
+`include "sha256_simple.sv"
+`include "sha256_simple_2.sv"
 
 
 endpackage : sha256_test_pkg
