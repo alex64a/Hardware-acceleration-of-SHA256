@@ -9,8 +9,8 @@ interface sha256_if (input clk, logic [1 : 0] rst);
    logic [DATA_WIDTH - 1 : 0] N_i;
    logic [DATA_WIDTH - 1 : 0]  M_i;
    logic [OUTPUT_WIDTH - 1 : 0]  H;
-   logic [1:0] start;
-   logic [1:0] ready;
+   logic start;
+   logic ready;
 
 endinterface : sha256_if
 

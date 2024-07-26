@@ -6,7 +6,7 @@ module sha256_verif_top;
    import sha256_test_pkg::*;
 
    logic clk;
-   logic [6 : 0] rst;
+   logic rst;
 
    // interface
    sha256_if sha256_vif(clk, rst);
